@@ -2,6 +2,13 @@
 
 This project provides an OCR pipeline for recognizing Aurebesh, the fictional script from STAR WARS. Built on the [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) framework, it enables training, inference of Aurebesh.
 
+## Features
+
+| Stage | Base Model |
+|---|---|
+| **Detection** | **PP-OCRv5_mobile_det** |
+| **Recognition** | **en_PP-OCRv5_mobile_rec** |
+
 ## Installation
 
 Install PaddlePaddle refer to [Installation Guide](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html), after then, install the PaddleOCR toolkit.
