@@ -2,24 +2,24 @@ Global:
   model_name: aurebesh_PP-OCRv5_mobile_rec # To use static model for inference.
   debug: false
   use_gpu: true
-  epoch_num: 75
+  epoch_num: 6
   log_smooth_window: 20
   print_batch_step: 10
-  save_model_dir: ./output/en_rec_ppocr_v5
+  save_model_dir: ./output/trained_models/aurebesh_PP-OCRv5_mobile_rec
   save_epoch_step: 10
   eval_batch_step: [0, 1000]
   cal_metric_during_train: true
-  pretrained_model:
+  pretrained_model: ./pretrained_models/en_PP-OCRv5_mobile_rec_pretrained.pdparams
   checkpoints:
   save_inference_dir:
   use_visualdl: false
   infer_img:
-  character_dict_path: ./ppocr/utils/dict/ppocrv5_en_dict.txt
-  max_text_length: &max_text_length 25
+  character_dict_path: ./train_data/aurebesh/rec/dict.txt
+  max_text_length: &max_text_length 35
   infer_mode: false
   use_space_char: true
   distributed: true
-  save_res_path: ./output/rec/predicts_en_ppocrv5.txt
+  save_res_path: ./output/checkpoints/rec/predicts_ppocrv5.txt
   d2s_train_image_shape: [3, 48, 320]
 
 
@@ -78,10 +78,10 @@ Train:
   dataset:
     name: MultiScaleDataSet
     ds_width: false
-    data_dir: ./train_data/
+    data_dir: ./train_data/aurebesh/rec/
     ext_op_transform_idx: 1
     label_file_list:
-    - ./train_data/train_list.txt
+    - ./train_data/aurebesh/rec/train.txt
     transforms:
     - DecodeImage:
         img_mode: BGR
@@ -104,7 +104,7 @@ Train:
   sampler:
     name: MultiScaleSampler
     scales: [[320, 32], [320, 48], [320, 64]]
-    first_bs: &bs 128
+    first_bs: &bs 256
     fix_bs: false
     divided_factor: [8, 16] # w, h
     is_training: True
@@ -112,13 +112,13 @@ Train:
     shuffle: true
     batch_size_per_card: *bs
     drop_last: true
-    num_workers: 8
+    num_workers: 10 # For Apple M4 Pro
 Eval:
   dataset:
     name: SimpleDataSet
-    data_dir: ./train_data/
+    data_dir: ./train_data/aurebesh/rec/
     label_file_list:
-    - ./train_data/val_list.txt
+    - ./train_data/aurebesh/rec/val.txt
     transforms:
     - DecodeImage:
         img_mode: BGR
