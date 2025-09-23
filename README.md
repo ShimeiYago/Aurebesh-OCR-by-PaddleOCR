@@ -15,8 +15,10 @@ This OCR is powered by PaddleOCR models.
 
 This project was developed and tested on the following hardware configuration:
 
-- **Chip**: Apple M4 Pro
-- **Memory**: 48GB
+| Environment | Spec |
+|---|---|
+| **Local** | **Chip**: Apple M4 Pro<br/>**Memory**: 48GB |
+| **Cloud** | **Region**: ap-northeast-1<br/>**AMI**: Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 24.04)<br/>**Architecture**: x86_64<br/>**Instance Type**: g6.xlarge<br/>**Storage**: gp3 100GB |
 
 ## Installation
 
@@ -60,6 +62,13 @@ train_data/
       └── val.txt
 ```
 
+**Recommended number of images**
+
+| Stage | number of images |
+|---|---|
+| **Detection** | 6,000 |
+| **Recognition** | 300,000 |
+
 ### Pre-trained models
 
 ```bash
@@ -70,18 +79,228 @@ wget https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_mode
 wget https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/en_PP-OCRv5_mobile_rec_pretrained.pdparams -P pretrained_models/
 ```
 
-## Training
+## Local Test
+
+```bash
+# Train detector
+python3 tools/train.py \
+  -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml \
+  -o Global.use_gpu=false \
+  Global.epoch_num=1 \
+  Global.print_batch_step=1 \
+  Global.eval_batch_step="[0, 51]" \
+  Global.use_wandb=false
+
+# Train recognizer
+python3 tools/train.py \
+  -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml \
+  -o Global.use_gpu=false \
+  Global.epoch_num=1 \
+  Global.print_batch_step=1 \
+  Global.eval_batch_step="[0, 30]" \
+  Global.use_wandb=false
+```
+
+Because data is too huge to run with CPU, you can stop process if you can confirm training starts with no issue.
+
+## Setup Cloud
+
+### Run EC2 Instance
+
+**Prerequisite**:
+- Ensure the AWS CLI (v2) is installed and configured.
+- Ensure key pair, security group, and subnet are created in region `ap-northeast-1`.
+
+---
+
+```bash
+# Account specific
+export KEY_PAIR_NAME=your-key-pair-name
+export SUBNET_ID=subnet-xxx
+export SECURITY_GROUP_ID=sg-xxx # Need to allow ssh from your IP address
+
+# Run AWS instance
+aws ec2 run-instances \
+  --image-id "ami-0ef16658d9cf82155" \
+  --instance-type g6.xlarge \
+  --key-name "$KEY_PAIR_NAME" \
+  --block-device-mappings '{
+    "DeviceName": "/dev/sda1",
+    "Ebs": {
+      "VolumeSize": 100,
+      "VolumeType": "gp3",
+      "DeleteOnTermination": true
+    }
+  }' \
+  --network-interfaces '{
+    "SubnetId": "'"$SUBNET_ID"'",
+    "AssociatePublicIpAddress": true,
+    "DeviceIndex": 0,
+    "Groups": ["'"$SECURITY_GROUP_ID"'"]
+  }' \
+  --metadata-options '{
+    "HttpEndpoint": "enabled",
+    "HttpPutResponseHopLimit": 2,
+    "HttpTokens": "required"
+  }' \
+  --private-dns-name-options '{
+    "HostnameType": "ip-name",
+    "EnableResourceNameDnsARecord": false,
+    "EnableResourceNameDnsAAAARecord": false
+  }' \
+  --count 1
+```
+
+Check public IP:
+
+```
+INSTANCE_ID=i-xxxxxxxxxxxxxxxxx
+aws ec2 describe-instances \
+  --instance-ids "$INSTANCE_ID" \
+  --query "Reservations[0].Instances[0].PublicIpAddress" \
+  --output text
+```
+
+After the EC2 instance starts successfully, update (or create) your local SSH config file (`~/.ssh/config`) with an entry like the following so you can connect using the short alias `paddle`:
+
+```
+Host paddle
+    HostName xxx.xxx.xxx.xxx
+    User ubuntu
+    IdentityFile /path/to/your-key-pair.pem
+```
+
+### Install PaddleOCR
+
+```
+ssh paddle
+```
+
+Clone Repository:
+
+```bash
+git clone https://github.com/ShimeiYago/Aurebesh-OCR-by-PaddleOCR.git paddleocr
+cd paddleocr
+```
+
+Install PaddleOCR via Docker:
+
+```bash
+# Build docker image
+docker build ./ -t paddleocr
+
+# Check GPU availability
+docker run \
+  --gpus all \
+  --shm-size=8G \
+  --rm \
+  paddleocr nvidia-smi
+```
+
+### Upload files
+
+Upload `train_data/`:
+
+```bash
+# At local Environment:
+
+COPYFILE_DISABLE=1 tar \
+  --no-xattrs --no-acls --no-fflags --format=ustar \
+  -cf - ./train_data \
+| ssh paddle 'tar -xpf - -C /home/ubuntu/paddleocr/'
+```
+
+Download pretrained models:
+
+```bash
+# At Cloud:
+
+cd /home/ubuntu/paddleocr
+
+# download detector pretrained model (PP-OCRv5_mobile_det)
+wget https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/PP-OCRv5_mobile_det_pretrained.pdparams -P pretrained_models/
+
+# download recognizer pretrained model (en_PP-OCRv5_mobile_rec)
+wget https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/en_PP-OCRv5_mobile_rec_pretrained.pdparams -P pretrained_models/
+```
+
+### Create .env file
+
+Create a `.env` file in the project root to write your W&B API key.
+
+```bash
+cd /home/ubuntu/paddleocr
+
+cat > .env <<'EOF'
+WANDB_API_KEY=xxxxx
+EOF
+
+chmod 600 .env
+```
+
+## Run Training on Cloud
+
+```bash
+ssh paddle
+cd /home/ubuntu/paddleocr
+```
 
 ### Train detector
 
 ```bash
-python3 tools/train.py -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml -o Global.use_gpu=false
+# Train (Run Background)
+docker run -d \
+  --gpus all \
+  -v $PWD:/paddleocr \
+  --env-file .env \
+  --shm-size=8G \
+  --network=host \
+  --rm \
+  paddleocr \
+  python3 tools/train.py \
+  -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml
+
+# Validate
+docker run \
+  --gpus all \
+  -v $PWD:/paddleocr \
+  --env-file .env \
+  --shm-size=8G \
+  --network=host \
+  --rm \
+  paddleocr \
+  python3 tools/train.py \
+  -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml \
+  -o Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_det/best_model/model.pdparams
 ```
 
 ### Train recognizer
 
 ```bash
-python3 tools/train.py -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yaml -o Global.use_gpu=false
+# Training (Run Background)
+docker run -d \
+  --gpus all \
+  -v $PWD:/paddleocr \
+  --env-file .env \
+  --shm-size=8G \
+  --network=host \
+  --rm \
+  paddleocr \
+  python3 tools/train.py \
+  -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml
+
+# Validate
+docker run \
+  --gpus all \
+  -v $PWD:/paddleocr \
+  --env-file .env \
+  --shm-size=8G \
+  --network=host \
+  --rm \
+  paddleocr \
+  python3 tools/train.py \
+  -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml \
+  -o Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_rec/best_model/model.pdparams
 ```
 
 ## License
