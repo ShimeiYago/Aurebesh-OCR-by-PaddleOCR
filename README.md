@@ -79,13 +79,21 @@ wget https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_mode
 wget https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/en_PP-OCRv5_mobile_rec_pretrained.pdparams -P pretrained_models/
 ```
 
+### Test Images
+
+```bash
+mkdir inference/inputs
+```
+
+Place your test images in `inference/inputs`.
+
 ## Local Test
 
 ```bash
 # Train detector
 python3 tools/train.py \
-  -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml \
-  -o Global.use_gpu=false \
+  -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml -o \
+  Global.use_gpu=false \
   Global.epoch_num=1 \
   Global.print_batch_step=1 \
   Global.eval_batch_step="[0, 51]" \
@@ -93,8 +101,8 @@ python3 tools/train.py \
 
 # Train recognizer
 python3 tools/train.py \
-  -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml \
-  -o Global.use_gpu=false \
+  -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml -o \
+  Global.use_gpu=false \
   Global.epoch_num=1 \
   Global.print_batch_step=1 \
   Global.eval_batch_step="[0, 30]" \
@@ -260,7 +268,7 @@ docker run -d \
   python3 tools/train.py \
   -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml
 
-# Validate
+# Evaluate
 docker run \
   --gpus all \
   -v $PWD:/paddleocr \
@@ -269,9 +277,9 @@ docker run \
   --network=host \
   --rm \
   paddleocr \
-  python3 tools/train.py \
-  -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml \
-  -o Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_det/best_model/model.pdparams
+  python3 tools/eval.py \
+  -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml -o \
+  Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_det/best_model/model.pdparams
 ```
 
 ### Train recognizer
@@ -288,8 +296,21 @@ docker run -d \
   paddleocr \
   python3 tools/train.py \
   -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml
+```
 
-# Validate
+## Evaluate
+
+### Evaluate Detector
+
+```bash
+# Mac
+python3 tools/eval.py \
+  -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml -o \
+  Global.use_gpu=false \
+  Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_det/best_model/model.pdparams \
+  Global.use_wandb=false
+
+# Cloud via Docker
 docker run \
   --gpus all \
   -v $PWD:/paddleocr \
@@ -298,9 +319,97 @@ docker run \
   --network=host \
   --rm \
   paddleocr \
-  python3 tools/train.py \
-  -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml \
-  -o Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_rec/best_model/model.pdparams
+  python3 tools/eval.py \
+  -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml -o \
+  Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_det/best_model/model.pdparams
+```
+
+### Evaluate Recognizer
+
+```bash
+# Mac
+python3 tools/eval.py \
+  -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml -o \
+  Global.use_gpu=false \
+  Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_rec/best_model/model.pdparams \
+  Global.use_wandb=false
+
+# Cloud via Docker
+docker run \
+  --gpus all \
+  -v $PWD:/paddleocr \
+  --env-file .env \
+  --shm-size=8G \
+  --network=host \
+  --rm \
+  paddleocr \
+  python3 tools/eval.py \
+  -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml -o \
+  Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_rec/best_model/model.pdparams
+```
+
+## Export models
+
+```bash
+# Export detector model
+python3 tools/export_model.py -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_det.yml -o \
+  Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_det/best_model/model.pdparams \
+  Global.model_name=PP-OCRv5_mobile_det
+
+# # Export pure PP-OCRv5_mobile_det model
+# python3 tools/export_model.py -c configs/det/PP-OCRv5/PP-OCRv5_mobile_det.yml -o \
+#   Global.save_inference_dir="./output/inference_models/aurebesh_PP-OCRv5_mobile_det/"
+
+# Export recognizer model
+python3 tools/export_model.py -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml -o \
+  Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_rec/best_model/model.pdparams \
+  Global.model_name=en_PP-OCRv5_mobile_rec
+```
+
+## Inference
+
+### Inference Detection only
+
+```bash
+python3 tools/infer/predict_det.py \
+  --det_model_dir ./output/inference_models/aurebesh_PP-OCRv5_mobile_det \
+  --image_dir ./inference/inputs \
+  --draw_img_save_dir ./inference/predicted/det \
+  --use_gpu=false \
+  --det_db_unclip_ratio 1.9 \
+  --det_db_box_thresh 0.5
+
+# # pure PP-OCRv5_mobile_det model
+# python3 tools/infer/predict_det.py \
+#   --det_model_dir ./output/inference_models/PP-OCRv5_mobile_det \
+#   --image_dir ./inference/inputs \
+#   --draw_img_save_dir ./inference/predicted/det \
+#   --use_gpu=false
+```
+
+## Inference OCR
+
+```bash
+python3 tools/infer/predict_system.py \
+  --det_model_dir ./output/inference_models/aurebesh_PP-OCRv5_mobile_det \
+  --rec_model_dir ./output/inference_models/aurebesh_PP-OCRv5_mobile_rec \
+  --image_dir ./inference/inputs \
+  --draw_img_save_dir ./inference/predicted/ocr \
+  --rec_char_dict_path ./train_data/aurebesh/rec/dict.txt \
+  --use_gpu=false \
+  --det_db_unclip_ratio 1.9 \
+  --det_db_box_thresh 0.5 \
+  --drop_score 0.82
+
+# # With pure PP-OCRv5_mobile_det model
+# python3 tools/infer/predict_system.py \
+#   --det_model_dir ./output/inference_models/PP-OCRv5_mobile_det \
+#   --rec_model_dir ./output/inference_models/aurebesh_PP-OCRv5_mobile_rec \
+#   --image_dir ./inference/inputs \
+#   --draw_img_save_dir ./inference/predicted/ocr \
+#   --rec_char_dict_path ./train_data/aurebesh/rec/dict.txt \
+#   --use_gpu=false \
+#   --drop_score 0.8
 ```
 
 ## License

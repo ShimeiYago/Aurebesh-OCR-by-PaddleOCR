@@ -1,5 +1,5 @@
 Global:
-  model_name: aurebesh_PP-OCRv5_mobile_rec # To use static model for inference.
+  model_name: en_PP-OCRv5_mobile_rec # To use static model for inference.
   debug: false
   use_gpu: true
   epoch_num: 6
@@ -11,7 +11,7 @@ Global:
   cal_metric_during_train: true
   pretrained_model: ./pretrained_models/en_PP-OCRv5_mobile_rec_pretrained.pdparams
   checkpoints:
-  save_inference_dir:
+  save_inference_dir: ./output/inference_models/aurebesh_PP-OCRv5_mobile_rec/
   use_visualdl: false
   infer_img:
   character_dict_path: ./train_data/aurebesh/rec/dict.txt
@@ -19,7 +19,7 @@ Global:
   infer_mode: false
   use_space_char: true
   distributed: false # for single GPU or CPU
-  save_res_path: ./output/checkpoints/rec/predicts_ppocrv5.txt
+  save_res_path: ./inference/test_results/rec/results.txt
   d2s_train_image_shape: [3, 48, 320]
   use_wandb: true
 
