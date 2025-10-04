@@ -36,6 +36,7 @@ from ppocr.utils.utility import get_image_file_list, check_and_read
 from ppocr.utils.logging import get_logger
 from tools.infer.utility import (
     draw_ocr_box_txt,
+    draw_ocr_inline,
     get_rotate_crop_image,
     get_minarea_rect_crop,
     slice_generator,
@@ -272,14 +273,24 @@ def main(args):
                 txts = [rec_res[i][0] for i in range(len(rec_res))]
                 scores = [rec_res[i][1] for i in range(len(rec_res))]
 
-                draw_img = draw_ocr_box_txt(
-                    image,
-                    boxes,
-                    txts,
-                    scores,
-                    drop_score=drop_score,
-                    font_path=font_path,
-                )
+                if args.vis_inline:
+                    draw_img = draw_ocr_inline(
+                        image,
+                        boxes,
+                        txts,
+                        scores,
+                        drop_score=drop_score,
+                        font_path=font_path,
+                    )
+                else:
+                    draw_img = draw_ocr_box_txt(
+                        image,
+                        boxes,
+                        txts,
+                        scores,
+                        drop_score=drop_score,
+                        font_path=font_path,
+                    )
                 if flag_gif:
                     save_file = image_file[:-3] + "png"
                 elif flag_pdf:

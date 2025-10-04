@@ -144,6 +144,14 @@ def init_args():
     parser.add_argument("--save_crop_res", type=str2bool, default=False)
     parser.add_argument("--crop_res_save_dir", type=str, default="./output")
 
+    # visualization options
+    parser.add_argument(
+        "--vis_inline",
+        type=str2bool,
+        default=False,
+        help="If true, draw recognized text directly on the original image instead of adding a right-side panel.",
+    )
+
     # multi-process
     parser.add_argument("--use_mp", type=str2bool, default=False)
     parser.add_argument("--total_process_num", type=int, default=1)
@@ -589,7 +597,8 @@ def draw_e2e_res(dt_boxes, strs, img_path):
 def draw_text_det_res(dt_boxes, img):
     for box in dt_boxes:
         box = np.array(box).astype(np.int32).reshape(-1, 2)
-        cv2.polylines(img, [box], True, color=(255, 255, 0), thickness=2)
+        # BGR red, thicker outline
+        cv2.polylines(img, [box], True, color=(0, 0, 255), thickness=5)
     return img
 
 
@@ -632,7 +641,9 @@ def draw_ocr(
         if scores is not None and (scores[i] < drop_score or math.isnan(scores[i])):
             continue
         box = np.reshape(np.array(boxes[i]), [-1, 1, 2]).astype(np.int64)
-        image = cv2.polylines(np.array(image), [box], True, (255, 0, 0), 2)
+        # image here is a numpy array but in RGB order; color in BGR may not be exact.
+        # Keep consistent visual intent: thicker outline.
+        image = cv2.polylines(np.array(image), [box], True, (0, 0, 255), 5)
     if txts is not None:
         img = np.array(resize_img(image, input_size=600))
         txt_img = text_visual(
@@ -659,7 +670,9 @@ def draw_ocr_box_txt(
     h, w = image.height, image.width
     img_left = image.copy()
     img_right = np.ones((h, w, 3), dtype=np.uint8) * 255
-    random.seed(0)
+    # Unify color to red
+    color_rgb = (255, 0, 0)
+    color_bgr = (0, 0, 255)
 
     draw_left = ImageDraw.Draw(img_left)
     if txts is None or len(txts) != len(boxes):
@@ -667,17 +680,119 @@ def draw_ocr_box_txt(
     for idx, (box, txt) in enumerate(zip(boxes, txts)):
         if scores is not None and scores[idx] < drop_score:
             continue
-        color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-        draw_left.polygon(box, fill=color)
+        # Filled red polygon for emphasis and a red outline for clear frame
+        draw_left.polygon(box, fill=color_rgb)
+        # Draw thick outline on the left image as well
+        pts_rgb = [tuple(map(int, p)) for p in box]
+        draw_left.line(pts_rgb + [pts_rgb[0]], fill=color_rgb, width=5)
         img_right_text = draw_box_txt_fine((w, h), box, txt, font_path)
         pts = np.array(box, np.int32).reshape((-1, 1, 2))
-        cv2.polylines(img_right_text, [pts], True, color, 1)
+        # Thicker red outline on the right panel trace
+        cv2.polylines(img_right_text, [pts], True, color_bgr, 4)
         img_right = cv2.bitwise_and(img_right, img_right_text)
     img_left = Image.blend(image, img_left, 0.5)
     img_show = Image.new("RGB", (w * 2, h), (255, 255, 255))
     img_show.paste(img_left, (0, 0, w, h))
     img_show.paste(Image.fromarray(img_right), (w, 0, w * 2, h))
     return np.array(img_show)
+
+
+def draw_ocr_inline(
+    image,
+    boxes,
+    txts=None,
+    scores=None,
+    drop_score=0.5,
+    font_path="./doc/fonts/simfang.ttf",
+):
+    """Draw detection polygons and recognized texts directly on the original image.
+
+    This renders text at the top-left corner of each detected box. It aims to be
+    simple and readable; for rotated text regions it won't rotate text, just place
+    it within the box area.
+    """
+    if scores is None:
+        scores = [1] * len(boxes)
+    if txts is None or len(txts) != len(boxes):
+        txts = [None] * len(boxes)
+
+    # Work in PIL for better font rendering, then return RGB np.array
+    img = image.copy()
+    draw = ImageDraw.Draw(img)
+
+    for idx, (box, txt) in enumerate(zip(boxes, txts)):
+        score = scores[idx] if scores is not None else 1
+        if score is not None and (score < drop_score or math.isnan(score)):
+            continue
+
+        # Fixed red color (RGB) and thicker outline
+        color = (255, 0, 0)
+
+        # Outline polygon
+        pts = [(int(p[0]), int(p[1])) for p in box]
+        draw.line(pts + [pts[0]], fill=color, width=5)
+
+        # Draw text near top-left of the box if available
+        if txt:
+            xs = [p[0] for p in box]
+            ys = [p[1] for p in box]
+            min_x, min_y = int(max(0, min(xs))), int(max(0, min(ys)))
+            max_x, max_y = int(max(xs)), int(max(ys))
+            box_w = max(10, max_x - min_x)
+            box_h = max(10, max_y - min_y)
+            try:
+                font = create_font(txt, (box_w, box_h), font_path)
+            except Exception:
+                # Fallback if font loading fails
+                font = ImageFont.load_default()
+
+            # Measure text size robustly
+            try:
+                left, top, right, bottom = draw.textbbox((0, 0), txt, font=font)
+                tw, th = right - left, bottom - top
+            except Exception:
+                try:
+                    tw, th = draw.textsize(txt, font=font)
+                except Exception:
+                    tw, th = (box_w, int(box_h * 0.4))
+
+            # Use font metrics as a safer lower bound for height
+            try:
+                ascent, descent = font.getmetrics()
+                th = max(th, ascent + descent)
+            except Exception:
+                pass
+
+            pad_x, pad_y = 3, 3
+
+            # Preferred placement: above the box
+            tx = min_x
+            ty = min_y - (th + 2 * pad_y)
+
+            # If not enough space above, place inside the box
+            if ty < 0:
+                ty = min(min_y + 1, img.height - (th + 2 * pad_y) - 1)
+
+            # Clamp horizontally to keep background in image
+            if tx + tw + 2 * pad_x > img.width:
+                tx = max(0, img.width - (tw + 2 * pad_x))
+
+            # Build background rect
+            x1 = int(max(0, tx))
+            y1 = int(max(0, ty))
+            x2 = int(min(img.width - 1, tx + tw + 2 * pad_x))
+            y2 = int(min(img.height - 1, ty + th + 2 * pad_y))
+
+            # Ensure non-degenerate rectangle
+            if x2 <= x1:
+                x2 = min(img.width - 1, x1 + tw + 2 * pad_x)
+            if y2 <= y1:
+                y2 = min(img.height - 1, y1 + th + 2 * pad_y)
+
+            ImageDraw.Draw(img).rectangle([x1, y1, x2, y2], fill=(255, 255, 255))
+            draw.text((x1 + pad_x, y1 + pad_y), txt, fill=(0, 0, 0), font=font)
+
+    return np.array(img)
 
 
 def draw_box_txt_fine(img_size, box, txt, font_path="./doc/fonts/simfang.ttf"):
@@ -849,7 +964,7 @@ def draw_boxes(image, boxes, scores=None, drop_score=0.5):
         if score < drop_score:
             continue
         box = np.reshape(np.array(box), [-1, 1, 2]).astype(np.int64)
-        image = cv2.polylines(np.array(image), [box], True, (255, 0, 0), 2)
+        image = cv2.polylines(np.array(image), [box], True, (0, 0, 255), 5)
     return image
 
 

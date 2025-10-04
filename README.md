@@ -399,7 +399,8 @@ python3 tools/infer/predict_system.py \
   --use_gpu=false \
   --det_db_unclip_ratio 1.9 \
   --det_db_box_thresh 0.5 \
-  --drop_score 0.82
+  --drop_score 0.82 \
+  --vis_inline=true
 
 # # With pure PP-OCRv5_mobile_det model
 # python3 tools/infer/predict_system.py \
