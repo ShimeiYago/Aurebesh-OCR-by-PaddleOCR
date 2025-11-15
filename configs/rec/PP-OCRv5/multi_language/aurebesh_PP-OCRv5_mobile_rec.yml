@@ -7,7 +7,7 @@ Global:
   print_batch_step: 10
   save_model_dir: ./output/trained_models/aurebesh_PP-OCRv5_mobile_rec
   save_epoch_step: 1
-  eval_batch_step: [0, 844] # 2 evaluations per epoch
+  eval_batch_step: [0, 337] # 5 evaluations per epoch
   cal_metric_during_train: true
   pretrained_model: ./pretrained_models/en_PP-OCRv5_mobile_rec_pretrained.pdparams
   checkpoints:
