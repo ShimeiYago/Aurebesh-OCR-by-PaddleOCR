@@ -356,10 +356,6 @@ python3 tools/export_model.py -c configs/det/PP-OCRv5/aurebesh_PP-OCRv5_mobile_d
   Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_det/best_model/model.pdparams \
   Global.model_name=PP-OCRv5_mobile_det
 
-# # Export pure PP-OCRv5_mobile_det model
-# python3 tools/export_model.py -c configs/det/PP-OCRv5/PP-OCRv5_mobile_det.yml -o \
-#   Global.save_inference_dir="./output/inference_models/aurebesh_PP-OCRv5_mobile_det/"
-
 # Export recognizer model
 python3 tools/export_model.py -c configs/rec/PP-OCRv5/multi_language/aurebesh_PP-OCRv5_mobile_rec.yml -o \
   Global.pretrained_model=output/trained_models/aurebesh_PP-OCRv5_mobile_rec/best_model/model.pdparams \
@@ -376,15 +372,9 @@ python3 tools/infer/predict_det.py \
   --image_dir ./inference/inputs \
   --draw_img_save_dir ./inference/predicted/det \
   --use_gpu=false \
-  --det_db_unclip_ratio 1.9 \
-  --det_db_box_thresh 0.5
-
-# # pure PP-OCRv5_mobile_det model
-# python3 tools/infer/predict_det.py \
-#   --det_model_dir ./output/inference_models/PP-OCRv5_mobile_det \
-#   --image_dir ./inference/inputs \
-#   --draw_img_save_dir ./inference/predicted/det \
-#   --use_gpu=false
+  --det_db_unclip_ratio 1.95 \
+  --det_db_thresh 0.18 \
+  --det_db_box_thresh 0.38
 ```
 
 ## Inference OCR
@@ -397,21 +387,13 @@ python3 tools/infer/predict_system.py \
   --draw_img_save_dir ./inference/predicted/ocr \
   --rec_char_dict_path ./train_data/aurebesh/rec/dict.txt \
   --use_gpu=false \
-  --det_db_unclip_ratio 1.9 \
-  --det_db_box_thresh 0.5 \
-  --drop_score 0.82 \
-  --vis_inline=true
-
-# # With pure PP-OCRv5_mobile_det model
-# python3 tools/infer/predict_system.py \
-#   --det_model_dir ./output/inference_models/PP-OCRv5_mobile_det \
-#   --rec_model_dir ./output/inference_models/aurebesh_PP-OCRv5_mobile_rec \
-#   --image_dir ./inference/inputs \
-#   --draw_img_save_dir ./inference/predicted/ocr \
-#   --rec_char_dict_path ./train_data/aurebesh/rec/dict.txt \
-#   --use_gpu=false \
-#   --drop_score 0.8
+  --det_db_unclip_ratio 1.95 \
+  --det_db_thresh 0.18 \
+  --det_db_box_thresh 0.38 \
+  --drop_score 0.86
 ```
+
+You can add `--viz_inline` option to render text in image. 
 
 ## License
 This project is released under the [Apache 2.0 license](LICENSE).
