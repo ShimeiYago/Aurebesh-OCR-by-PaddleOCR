@@ -393,7 +393,7 @@ python3 tools/infer/predict_system.py \
   --drop_score 0.86
 ```
 
-You can add `--viz_inline` option to render text in image. 
+You can add `--viz_inline` option to render text in image, and optionally specify `--viz_inline_font_size 28` (or any positive integer) to force a fixed text size. Non-numeric values fall back to the automatic sizing.
 
 ## License
 This project is released under the [Apache 2.0 license](LICENSE).

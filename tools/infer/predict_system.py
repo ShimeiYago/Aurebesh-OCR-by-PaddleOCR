@@ -194,6 +194,15 @@ def main(args):
     os.makedirs(draw_img_save_dir, exist_ok=True)
     save_results = []
 
+    inline_font_size = None
+    if args.viz_inline_font_size is not None:
+        try:
+            inline_font_size = int(args.viz_inline_font_size)
+            if inline_font_size <= 0:
+                inline_font_size = None
+        except ValueError:
+            inline_font_size = None
+
     logger.info(
         "In PP-OCRv3, rec_image_shape parameter defaults to '3, 48, 320', "
         "if you are using recognition model with PP-OCRv2 or an older version, please set --rec_image_shape='3,32,320"
@@ -281,6 +290,7 @@ def main(args):
                         scores,
                         drop_score=drop_score,
                         font_path=font_path,
+                        font_size_override=inline_font_size,
                     )
                 else:
                     draw_img = draw_ocr_box_txt(

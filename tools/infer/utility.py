@@ -147,9 +147,19 @@ def init_args():
     # visualization options
     parser.add_argument(
         "--vis_inline",
+        "--viz_inline",
+        dest="vis_inline",
         type=str2bool,
         default=False,
         help="If true, draw recognized text directly on the original image instead of adding a right-side panel.",
+    )
+    parser.add_argument(
+        "--vis_inline_font_size",
+        "--viz_inline_font_size",
+        dest="viz_inline_font_size",
+        type=str,
+        default=None,
+        help="Optional numeric text size override for inline visualization. Non-numeric values fall back to the automatic size.",
     )
 
     # multi-process
@@ -704,6 +714,7 @@ def draw_ocr_inline(
     scores=None,
     drop_score=0.5,
     font_path="./doc/fonts/simfang.ttf",
+    font_size_override=None,
 ):
     """Draw detection polygons and recognized texts directly on the original image.
 
@@ -741,7 +752,12 @@ def draw_ocr_inline(
             box_w = max(10, max_x - min_x)
             box_h = max(10, max_y - min_y)
             try:
-                font = create_font(txt, (box_w, box_h), font_path)
+                font = create_font(
+                    txt,
+                    (box_w, box_h),
+                    font_path,
+                    override_size=font_size_override,
+                )
             except Exception:
                 # Fallback if font loading fails
                 font = ImageFont.load_default()
@@ -835,7 +851,14 @@ def draw_box_txt_fine(img_size, box, txt, font_path="./doc/fonts/simfang.ttf"):
     return img_right_text
 
 
-def create_font(txt, sz, font_path="./doc/fonts/simfang.ttf"):
+def create_font(txt, sz, font_path="./doc/fonts/simfang.ttf", override_size=None):
+    if override_size is not None:
+        try:
+            font_size = max(1, int(override_size))
+        except (ValueError, TypeError):
+            font_size = int(sz[1] * 0.99)
+        return ImageFont.truetype(font_path, font_size, encoding="utf-8")
+
     font_size = int(sz[1] * 0.99)
     font = ImageFont.truetype(font_path, font_size, encoding="utf-8")
     if int(PIL.__version__.split(".")[0]) < 10:
